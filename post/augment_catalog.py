@@ -13,11 +13,11 @@ from astropy.io import ascii
 from scipy.interpolate import interp1d
 
 from generate_randoms import gen_rand
-sys.path.append("/global/homes/b/boryanah/tanveer/maps")
+sys.path.append("/global/homes/b/boryanah/abacus_lensing/maps")
 from tools import compress_asdf
 
 DEFAULTS = {}
-DEFAULTS['sim_name'] = "AbacusSummit_base_c000_ph006" # "AbacusSummit_huge_c000_ph201"#"AbacusSummit_base_c000_ph000" # "AbacusSummit_huge_c000_ph201"
+DEFAULTS['sim_name'] = "AbacusSummit_base_c000_ph000" # "AbacusSummit_huge_c000_ph201"
 
 def get_norm(gals_pos, origin):
     """ get normal vector and chis"""
@@ -67,6 +67,7 @@ def read_fits(gal_fn, cat_dir, tracer, redshift, sim_name):
 def read_dat(want_rsd, cat_dir, tracer, redshift, sim_name):
     # load file with catalog
     rsd_str = '_rsd' if want_rsd else ''
+    print(str(Path(cat_dir) / sim_name / (f"z{redshift:.3f}") / f'galaxies{rsd_str}' / f'{tracer}s.dat'))
     f = ascii.read(Path(cat_dir) / sim_name / (f"z{redshift:.3f}") / f'galaxies{rsd_str}' / f'{tracer}s.dat')
     gals_pos = np.vstack((f['x'], f['y'], f['z'])).T
     N_gals = gals_pos.shape[0]
@@ -76,9 +77,11 @@ def read_dat(want_rsd, cat_dir, tracer, redshift, sim_name):
 def main(sim_name, want_rsd=False):
     # parameter choices
     #redshifts = [0.400, 0.450, 0.500, 0.575, 0.650, 0.725, 0.800, 0.875, 0.950, 1.025, 1.100, 1.175, 1.250, 1.325, 1.400]
-    redshifts = [0.450, 0.575, 0.725, 0.875, 1.025, 1.100, 1.175, 1.250, 1.325, 1.400] #[0.400, 0.500, 0.650, 0.800, 0.950]
+    redshifts = [0.500, 0.800,  1.025, 1.100, 1.400] #[0.15, 0.2, 0.25, 0.3, 0.35] #[0.400, 0.500, 0.650, 0.800, 0.950]
     tracer = "ELG"
+    #tracer = "LRG"
     rands_fac = 20
+    want_octant = 'None' #'octonly_all', "octant_all" (all 8) # "octonlysmooth", "octant", "octonly" (these 3 are for huge)
     
     # immutables
     sim_dir = "/global/project/projectdirs/desi/cosmosim/Abacus/halo_light_cones/"
@@ -111,170 +114,256 @@ def main(sim_name, want_rsd=False):
 
     # nside
     import glob
-    gamma_fns = sorted(glob.glob(lens_save_dir+f"gamma_*.asdf"))
+    gamma_fns = sorted(glob.glob(lens_save_dir+f"gamma_000*.asdf"))
     z_srcs = []
     for i in range(len(gamma_fns)):
-        z_srcs.append(asdf.open(gamma_fns[i])['header']['SourceRedshift'])
+        z_src = asdf.open(gamma_fns[i])['header']['SourceRedshift']
+        z_srcs.append(z_src)
     z_srcs = np.sort(np.array(z_srcs))
     print("redshift sources = ", z_srcs)
     z_srcs = np.unique(z_srcs)
     
-    nside = asdf.open(gamma_fns[2])['header']['HEALPix_nside']
-    order = asdf.open(gamma_fns[2])['header']['HEALPix_order']
+    nside = asdf.open(gamma_fns[0])['header']['HEALPix_nside']
+    order = asdf.open(gamma_fns[0])['header']['HEALPix_order']
     print("nside and order = ", nside, order)
-    
-    for redshift in redshifts:        
-        if '.fits' in gal_fn:
-            gals_pos = read_fits(gal_fn, cat_dir, tracer, redshift, sim_name)
-        elif '.dat' in gal_fn:
-            gals_pos = read_dat(want_rsd, cat_dir, tracer, redshift, sim_name)
 
-        # get the unit vectors and comoving distances to the observer
-        gals_norm, gals_chis, gals_min, gals_max = get_norm(gals_pos, origin)
-        print("closest and furthest distance of gals = ", gals_min, gals_max)
 
-        # directory for saving stuff
-        save_dir = Path(cat_dir) / sim_name / (f"z{redshift:.3f}") / f'galaxies{rsd_str}'
-
-        # generate randoms in L shape
-        rands_pos, rands_norm, rands_chis = gen_rand(len(gals_chis), gals_min, gals_max, rands_fac, Lbox, offset, origins)
-        
-        # convert the unit vectors into RA and DEC
-        RA, DEC, CZ = get_ra_dec_chi(gals_norm, gals_chis)
-        rands_RA, rands_DEC, rands_CZ = get_ra_dec_chi(rands_norm, rands_chis)
-
-        # convert chi to redshift
-        Z = z_of_chi(CZ)
-        rands_Z = z_of_chi(rands_CZ)
-
-        # dictionary containing value added fields
-        table = {}
-        table['Z'] = Z
-        table['RA'] = RA
-        table['DEC'] = DEC
-        table['CZ'] = CZ
-        table['gamma1'] = np.zeros(len(RA))
-        table['gamma2'] = np.zeros(len(RA))
-        table['kappa'] = np.zeros(len(RA))
-        table['RA_lens'] = np.zeros(len(RA))
-        table['DEC_lens'] = np.zeros(len(RA))
-        table['RAND_RA'] = rands_RA
-        table['RAND_DEC'] = rands_DEC
-        table['RAND_Z'] = rands_Z
-        table['RAND_CZ'] = rands_CZ
-        table['RAND_gamma1'] = np.zeros(len(rands_RA))
-        table['RAND_gamma2'] = np.zeros(len(rands_RA))
-        table['RAND_kappa'] = np.zeros(len(rands_RA))
-        header = {}
-        header['SimulationName'] = sim_name
-        header['GalaxyTracer'] = tracer
-        header['CatalogRedshift'] = redshift
-        if want_rsd:
-            header['RSD'] = 'ON'
+    if want_octant is not 'None':
+        phi_mins = []
+        phi_maxs = []
+        theta_mins = []
+        theta_maxs = []        
+        bite_size = np.pi/2.
+        if 'all' in want_octant:
+            i_phis = np.arange(4)
+            i_thetas = np.arange(2)
         else:
-            header['RSD'] = 'OFF'
+            i_phis = np.arange(1)
+            i_thetas = np.arange(1)
 
-        # scope of redshifts (randoms may have a wider range)
-        Z_min = np.min(rands_Z)
-        Z_max = np.max(rands_Z)
-        print("rand Z min/max", Z_min, Z_max)
-        Z_min = np.min([Z_min, np.min(Z)])
-        Z_max = np.max([Z_max, np.max(Z)])
-        print("overall Z min/max", Z_min, Z_max)
-        i_zsrc_min = np.argmin(np.abs(Z_min - z_srcs))
-        i_zsrc_max = np.argmin(np.abs(Z_max - z_srcs))
-        print("RA min/max", RA.min(), RA.max())
-        print("DEC min/max", DEC.min(), DEC.max())
+        for i_phi in i_phis:
+            for i_theta in i_thetas:
+                phi_min = bite_size * i_phi
+                phi_max = bite_size * (i_phi + 1)
+                theta_min = bite_size * i_theta
+                theta_max = bite_size * (i_theta + 1)
+                phi_mins.append(phi_min)
+                phi_maxs.append(phi_max)
+                theta_mins.append(theta_min)
+                theta_maxs.append(theta_max)
+    else:
+        phi_mins = [0]
+        phi_maxs = [0]
+        theta_mins = [0]
+        theta_maxs = [0]        
         
-        # convert angles to pixel numbers
-        nest = True if order == 'NESTED' else False
-        #nside = 2048 # TESTING!!!!!!!!!!!
-        print("should be false = ", nest)
-        ipix = hp.ang2pix(nside, theta=RA, phi=DEC, nest=nest, lonlat=True) # RA, DEC degrees (math convention)
-        rands_ipix = hp.ang2pix(nside, theta=rands_RA, phi=rands_DEC, nest=nest, lonlat=True) # RA, DEC degrees (math convention)
+    angle_sum = 0
+    for i in range(len(theta_mins)):
+        phi_min = phi_mins[angle_sum]
+        phi_max = phi_maxs[angle_sum]
+        theta_min = theta_mins[angle_sum]
+        theta_max = theta_maxs[angle_sum]
+        angle_sum += 1
+    
+        for redshift in redshifts:        
+            if '.fits' in gal_fn:
+                gals_pos = read_fits(gal_fn, cat_dir, tracer, redshift, sim_name)
+            elif '.dat' in gal_fn:
+                gals_pos = read_dat(want_rsd, cat_dir, tracer, redshift, sim_name)
 
-        # go into spherical coordinates
-        THETA = (90.-DEC)*np.pi/180. # checked in Lewis Piranya 2008
-        PHI = RA*np.pi/180.
-        
-        # for each galaxy find the closest zsrc
-        sum = 0
-        rands_sum = 0
-        delta_z = z_srcs[1]-z_srcs[0]
-        print("delta_z = ", delta_z)
-        print("z sources = ", z_srcs)
-        print("total galaxy number = ", len(Z))
-        for i in range(len(z_srcs)):
-            if i < i_zsrc_min or i > i_zsrc_max: continue
-            print("source redshift = ", z_srcs[i])
-            
-            # select galaxies corresponding to that redshift source
-            choice = (np.abs(Z - z_srcs[i]) <= delta_z/2.)
-            rands_choice = (np.abs(rands_Z - z_srcs[i]) <= delta_z/2.)
-            sum += np.sum(choice)
-            print("sum = ", sum)
-            rands_sum += np.sum(rands_choice)
-            ipix_choice = ipix[choice]
-            rands_ipix_choice = rands_ipix[rands_choice]
+            # get the unit vectors and comoving distances to the observer
+            gals_norm, gals_chis, gals_min, gals_max = get_norm(gals_pos, origin)
+            print("closest and furthest distance of gals = ", gals_min, gals_max)
 
-            # save gamma and kappa values for galaxies and randoms
-            #i = 9 # TESTING 0.55
-            print(asdf.open(f"{lens_save_dir}/gamma_{i:05d}.asdf")['header'].items())
-            gamma1 = asdf.open(f"{lens_save_dir}/gamma_{i:05d}.asdf")['data']['gamma1']
-            #gamma1 = np.load("../test/gamma1_nside.npy") # TESTING!!!!!!!!!!!
-            table['gamma1'][choice] = gamma1[ipix_choice]
-            table['RAND_gamma1'][rands_choice] = gamma1[rands_ipix_choice]
-            del gamma1; gc.collect()
-            gamma2 = asdf.open(f"{lens_save_dir}/gamma_{i:05d}.asdf")['data']['gamma2']
-            #gamma2 = np.load("../test/gamma2_nside.npy") # TESTING!!!!!!!!!!!
-            table['gamma2'][choice] = -gamma2[ipix_choice] # minus sign is important
-            table['RAND_gamma2'][rands_choice] = -gamma2[rands_ipix_choice]  # minus sign is important
-            del gamma2; gc.collect()
-            kappa = asdf.open(f"{lens_save_dir}/kappa_{i:05d}.asdf")['data']['kappa']
-            #kappa = np.load("../test/kappa.npy") # TESTING!!!!!!!!!!!
-            table['kappa'][choice] = kappa[ipix_choice]
-            table['RAND_kappa'][rands_choice] = kappa[rands_ipix_choice]
-            del kappa; gc.collect()
+            # directory for saving stuff
+            save_dir = Path(cat_dir) / sim_name / (f"z{redshift:.3f}") / f'galaxies{rsd_str}'
 
-            # call the gamma and alpha maps
-            alpha1 = asdf.open(f"{lens_save_dir}/alpha_{i:05d}.asdf")['data']['alpha1']
-            alpha2 = asdf.open(f"{lens_save_dir}/alpha_{i:05d}.asdf")['data']['alpha2']
-            
-            # derived quantities from the deflection angle
-            alpha = np.sqrt(alpha1**2+alpha2**2)
-            cosdelta = alpha1/alpha
-            sindelta = alpha2/alpha
-            del alpha1, alpha2; gc.collect()
-            
-            # save deflected positions following 5.1 in Fosalba 2013
-            alp = alpha[ipix_choice]
-            del alpha; gc.collect()
-            sdel = sindelta[ipix_choice]
-            del sindelta; gc.collect()
-            cdel = cosdelta[ipix_choice]
-            del cosdelta; gc.collect()
-            DPHI = np.arcsin(np.sin(alp)*sdel/np.sin(THETA[choice]))
-            THETAP = np.arccos(np.cos(alp)*np.cos(THETA[choice])-np.sin(alp)*np.sin(THETA[choice])*cdel)
-            del alp, sdel, cdel; gc.collect()
-            table['RA_lens'][choice] = (PHI[choice]+DPHI)*180./np.pi
-            table['DEC_lens'][choice] = (np.pi/2. - THETAP)*180./np.pi
-            del THETAP, DPHI; gc.collect()
-            
-        assert len(Z) == sum
-        assert len(rands_Z) == rands_sum
-        
-        # compress table and save into asdf file
-        compress_asdf(save_dir / f"{tracer}s_catalog.asdf", table, header)
-        
-         
-        #hdu = fits.PrimaryHDU(export_array)
-        #hdulist = fits.HDUList([hdu])
-        #hdulist.writeto(out_file_name)
-        #hdulist.close()
-        
-        fns = list(save_dir.glob("*.asdf"))
-        for fn in fns:
-            os.chmod(fn, 0o755)
+            # TESTING
+            gals_min = np.min(gals_chis[gals_chis > 0.])
+            print("GALS MIN = ", gals_min)
+
+            # generate randoms in L shape
+            rands_pos, rands_norm, rands_chis = gen_rand(len(gals_chis), gals_min, gals_max, rands_fac, Lbox, offset, origins)
+
+            # convert the unit vectors into RA and DEC
+            RA, DEC, CZ = get_ra_dec_chi(gals_norm, gals_chis)
+            rands_RA, rands_DEC, rands_CZ = get_ra_dec_chi(rands_norm, rands_chis)
+
+            # TESTING
+            choice = ~np.isnan(RA)
+            RA = RA[choice]
+            DEC = DEC[choice]
+            CZ = CZ[choice]
+
+            # convert chi to redshift
+            Z = z_of_chi(CZ)
+            rands_Z = z_of_chi(rands_CZ)
+
+            # go into spherical coordinates
+            THETA = (90.-DEC)*np.pi/180. # checked in Lewis Piranya 2008
+            PHI = RA*np.pi/180.
+            if want_octant is not 'None':
+
+                rands_THETA = (90.-rands_DEC)*np.pi/180.
+                rands_PHI = rands_RA*np.pi/180.
+
+                choice = (THETA < theta_max) & (THETA > theta_min) & (PHI < phi_max) & (PHI > phi_min)
+                rands_choice = (rands_THETA < theta_max) & (rands_THETA > theta_min) & (rands_PHI < phi_max) & (rands_PHI > phi_min)
+                Z = Z[choice]
+                RA = RA[choice]
+                DEC = DEC[choice]
+                CZ = CZ[choice]
+                THETA = THETA[choice]
+                PHI = PHI[choice]
+                rands_RA = rands_RA[rands_choice]
+                rands_DEC = rands_DEC[rands_choice]
+                rands_Z = rands_Z[rands_choice]
+                rands_CZ = rands_CZ[rands_choice]
+                del choice, rands_choice
+                gc.collect()
+
+            # dictionary containing value added fields
+            table = {}
+            table['Z'] = Z
+            table['RA'] = RA
+            table['DEC'] = DEC
+            table['CZ'] = CZ
+            table['gamma1'] = np.zeros(len(RA))
+            table['gamma2'] = np.zeros(len(RA))
+            table['kappa'] = np.zeros(len(RA))
+            table['RA_lens'] = np.zeros(len(RA))
+            table['DEC_lens'] = np.zeros(len(RA))
+            table['RAND_RA'] = rands_RA
+            table['RAND_DEC'] = rands_DEC
+            table['RAND_Z'] = rands_Z
+            table['RAND_CZ'] = rands_CZ
+            table['RAND_gamma1'] = np.zeros(len(rands_RA))
+            table['RAND_gamma2'] = np.zeros(len(rands_RA))
+            table['RAND_kappa'] = np.zeros(len(rands_RA))
+            header = {}
+            header['SimulationName'] = sim_name
+            header['GalaxyTracer'] = tracer
+            header['CatalogRedshift'] = redshift
+            if want_rsd:
+                header['RSD'] = 'ON'
+            else:
+                header['RSD'] = 'OFF'
+
+            # scope of redshifts (randoms may have a wider range)
+            Z_min = np.min(rands_Z)
+            Z_max = np.max(rands_Z)
+            print("rand Z min/max", Z_min, Z_max)
+            Z_min = np.min([Z_min, np.min(Z)])
+            Z_max = np.max([Z_max, np.max(Z)])
+            print("overall Z min/max", Z_min, Z_max)
+            i_zsrc_min = np.argmin(np.abs(Z_min - z_srcs))
+            i_zsrc_max = np.argmin(np.abs(Z_max - z_srcs))
+            print("RA min/max", RA.min(), RA.max())
+            print("DEC min/max", DEC.min(), DEC.max())
+
+            # convert angles to pixel numbers
+            nest = True if order == 'NESTED' else False
+            #nside = 2048 # TESTING!!!!!!!!!!!
+            print("should be false = ", nest)
+            ipix = hp.ang2pix(nside, theta=RA, phi=DEC, nest=nest, lonlat=True) # RA, DEC degrees (math convention)
+            rands_ipix = hp.ang2pix(nside, theta=rands_RA, phi=rands_DEC, nest=nest, lonlat=True) # RA, DEC degrees (math convention)
+
+            # for each galaxy find the closest zsrc
+            sum = 0
+            rands_sum = 0
+            delta_z = z_srcs[1]-z_srcs[0]
+            print("delta_z = ", delta_z)
+            print("z sources = ", z_srcs)
+            print("total galaxy number = ", len(Z))
+            for i in range(len(z_srcs)):
+                if i < i_zsrc_min or i > i_zsrc_max: continue
+                print("source redshift = ", z_srcs[i])
+
+                # select galaxies corresponding to that redshift source
+                choice = (np.abs(Z - z_srcs[i]) <= delta_z/2.)
+                rands_choice = (np.abs(rands_Z - z_srcs[i]) <= delta_z/2.)
+                sum += np.sum(choice)
+                print("sum = ", sum)
+                rands_sum += np.sum(rands_choice)
+                ipix_choice = ipix[choice]
+                rands_ipix_choice = rands_ipix[rands_choice]
+
+                # save gamma and kappa values for galaxies and randoms
+                #i = 9 # TESTING 0.55
+                print(asdf.open(f"{lens_save_dir}/gamma_{i:05d}.asdf")['header'].items())
+                if "octonly" in want_octant:
+                    if 'all' in want_octant:
+                        gamma1 = asdf.open(f"{lens_save_dir}/gamma_octant{angle_sum:d}_{i:05d}.asdf")['data']['gamma1']
+                    else:
+                        gamma1 = asdf.open(f"{lens_save_dir}/gamma_{want_octant}_{i:05d}.asdf")['data']['gamma1']
+                else:
+                    gamma1 = asdf.open(f"{lens_save_dir}/gamma_{i:05d}.asdf")['data']['gamma1']
+                #gamma1 = np.load("../test/gamma1_nside.npy") # TESTING!!!!!!!!!!!
+                table['gamma1'][choice] = gamma1[ipix_choice]
+                table['RAND_gamma1'][rands_choice] = gamma1[rands_ipix_choice]
+                del gamma1; gc.collect()
+                if "octonly" in want_octant:
+                    if 'all' in want_octant:
+                        gamma2 = asdf.open(f"{lens_save_dir}/gamma_octant{angle_sum:d}_{i:05d}.asdf")['data']['gamma2']
+                    else:
+                        gamma2 = asdf.open(f"{lens_save_dir}/gamma_{want_octant}_{i:05d}.asdf")['data']['gamma2']
+                else:
+                    gamma2 = asdf.open(f"{lens_save_dir}/gamma_{i:05d}.asdf")['data']['gamma2']
+                #gamma2 = np.load("../test/gamma2_nside.npy") # TESTING!!!!!!!!!!!
+                table['gamma2'][choice] = -gamma2[ipix_choice] # minus sign is important
+                table['RAND_gamma2'][rands_choice] = -gamma2[rands_ipix_choice]  # minus sign is important
+                del gamma2; gc.collect()
+                kappa = asdf.open(f"{lens_save_dir}/kappa_{i:05d}.asdf")['data']['kappa']
+                #kappa = np.load("../test/kappa.npy") # TESTING!!!!!!!!!!!
+                table['kappa'][choice] = kappa[ipix_choice]
+                table['RAND_kappa'][rands_choice] = kappa[rands_ipix_choice]
+                del kappa; gc.collect()
+
+                # call the gamma and alpha maps
+                alpha1 = asdf.open(f"{lens_save_dir}/alpha_{i:05d}.asdf")['data']['alpha1']
+                alpha2 = asdf.open(f"{lens_save_dir}/alpha_{i:05d}.asdf")['data']['alpha2']
+
+                # derived quantities from the deflection angle
+                alpha = np.sqrt(alpha1**2+alpha2**2)
+                cosdelta = alpha1/alpha
+                sindelta = alpha2/alpha
+                del alpha1, alpha2; gc.collect()
+
+                # save deflected positions following 5.1 in Fosalba 2013
+                alp = alpha[ipix_choice]
+                del alpha; gc.collect()
+                sdel = sindelta[ipix_choice]
+                del sindelta; gc.collect()
+                cdel = cosdelta[ipix_choice]
+                del cosdelta; gc.collect()
+                DPHI = np.arcsin(np.sin(alp)*sdel/np.sin(THETA[choice]))
+                THETAP = np.arccos(np.cos(alp)*np.cos(THETA[choice])-np.sin(alp)*np.sin(THETA[choice])*cdel)
+                del alp, sdel, cdel; gc.collect()
+                table['RA_lens'][choice] = (PHI[choice]+DPHI)*180./np.pi
+                table['DEC_lens'][choice] = (np.pi/2. - THETAP)*180./np.pi
+                del THETAP, DPHI; gc.collect()
+
+            assert len(Z) == sum
+            assert len(rands_Z) == rands_sum
+
+            # compress table and save into asdf file
+            if want_octant is not 'None':
+                if 'all' in want_octant:
+                    compress_asdf(save_dir / f"{tracer}s_{want_octant}{angle_sum:d}_catalog.asdf", table, header)
+                else:
+                    compress_asdf(save_dir / f"{tracer}s_{want_octant}_catalog.asdf", table, header)
+            else:
+                compress_asdf(save_dir / f"{tracer}s_catalog.asdf", table, header)
+
+
+            #hdu = fits.PrimaryHDU(export_array)
+            #hdulist = fits.HDUList([hdu])
+            #hdulist.writeto(out_file_name)
+            #hdulist.close()
+
+            fns = list(save_dir.glob("*.asdf"))
+            for fn in fns:
+                os.chmod(fn, 0o755)
 
 class ArgParseFormatter(argparse.RawDescriptionHelpFormatter, argparse.ArgumentDefaultsHelpFormatter):
     pass

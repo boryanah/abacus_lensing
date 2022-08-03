@@ -145,7 +145,10 @@ del new_ipix
 gc.collect()
 
 # maximum chi where the mask is the same
-chi_same_mask = 1980./h
+if "base" in sim_name:
+    chi_same_mask = 1980./h
+elif "huge" in sim_name:
+    chi_same_mask = (Lbox-20.)/2./h
 print("z where same mask = ", z_of_chi(chi_same_mask))
 
 if z_start <= z_of_chi(chi_same_mask):

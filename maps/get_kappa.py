@@ -31,27 +31,38 @@ from abacusnbody.metadata import get_meta
 z_cmb = 1089.276682
 chi_cmb = 13872.661199427605 # Mpc
 
+# simulation name
+#sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
+sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
+
 # select the source redshifts (0.1 to 2.5 delta z = 0.05, around 50) tuks
 #z_srcs = np.arange(0.1, 2.5, 0.05);
 z_dic = {}
 e_tol = 1.e-6
-z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(0.45, 0.75-e_tol, 0.05); z_str = "_z0.45_z0.75"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(0.75, 1.05-e_tol, 0.05); z_str = "_z0.75_z1.05"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.05, 1.35-e_tol, 0.05); z_str = "_z1.05_z1.35"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.35, 1.65-e_tol, 0.05); z_str = "_z1.35_z1.65"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.65, 1.95-e_tol, 0.05); z_str = "_z1.65_z1.95"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.95, 2.25-e_tol, 0.05); z_str = "_z1.95_z2.25"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(2.25, 2.55-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.2_z2.45_cmb"; z_dic[z_str] = z_srcs
+if 'base' in sim_name:
+    #z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs # TESTING!!!!!!!!!!!!
+    #z_srcs = np.arange(0.45, 0.75-e_tol, 0.05); z_str = "_z0.45_z0.75"; z_dic[z_str] = z_srcs
+    #z_srcs = np.arange(0.75, 1.05-e_tol, 0.05); z_str = "_z0.75_z1.05"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.05, 1.35-e_tol, 0.05); z_str = "_z1.05_z1.35"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.35, 1.65-e_tol, 0.05); z_str = "_z1.35_z1.65"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.65, 1.95-e_tol, 0.05); z_str = "_z1.65_z1.95"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.95, 2.25-e_tol, 0.05); z_str = "_z1.95_z2.25"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(2.25, 2.55-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.2_z2.45_cmb"; z_dic[z_str] = z_srcs
+elif 'huge' in sim_name:
+    z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(0.45, 0.70-e_tol, 0.05); z_str = "_z0.45_z0.70"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(0.70, 0.95-e_tol, 0.05); z_str = "_z0.70_z0.95"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(0.95, 1.20-e_tol, 0.05); z_str = "_z0.95_z1.20"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.20, 1.45-e_tol, 0.05); z_str = "_z1.20_z1.45"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.45, 1.70-e_tol, 0.05); z_str = "_z1.45_z1.70"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.70, 1.95-e_tol, 0.05); z_str = "_z1.70_z1.95"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.95, 2.20-e_tol, 0.05); z_str = "_z1.95_z2.20"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(2.20, 2.45-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.20_z2.35_cmb"; z_dic[z_str] = z_srcs
 
 # healpix parameters (true for all AbacusSummit products, but could automize)
 nside = 16384
 delta_omega = hp.nside2pixarea(nside) # steradians per pixel
 npix = (hp.nside2npix(nside))
-
-# simulation name
-#sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
-sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
 
 # directories
 header_dir = f"/global/homes/b/boryanah//repos/abacus_lc_cat/data_headers/{sim_name}/"
@@ -108,12 +119,17 @@ chi_mid = chi_of_z(z_mid)
 step_min = np.min(steps_all)
 step_max = np.max(steps_all)
 
-# location of the observer
-origin = np.array([-990., -990., -990.])
-
 # distance from furthest point to observer in Mpc/h
-chi_max = 1.5*Lbox-origin[0]
-chi_max /= h # Mpc
+if "huge" in sim_name:
+    # location of the observer
+    origin = np.array([0., 0., 0.])
+    chi_max = 0.5*Lbox-origin[0]
+    chi_max /= h # Mpc
+else:
+    # location of the observer
+    origin = np.array([-990., -990., -990.])
+    chi_max = 1.5*Lbox-origin[0]
+    chi_max /= h # Mpc
 
 # select the final and initial step for computing the convergence map
 step_start = steps_all[np.argmax((chis_all-chi_max) < 0)] # corresponds to 4000-origin

@@ -13,6 +13,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 # define Cosmology object
+want_rsd = 0#True
+rsd_str = "_rsd" if want_rsd else ""
 h = 0.6736
 cosmo_dic = {
     'h': h,
@@ -33,14 +35,16 @@ cosmo = ccl.Cosmology(**cosmo_dic)
 # file params
 cat_dir = "/global/cscratch1/sd/boryanah/AbacusHOD_scratch/mocks_desi_lc/"
 sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph006" #"AbacusSummit_base_c000_ph000"
+tracer = "ELG"
+#tracer = "LRG"
 z_lens = 0.5
-z_source = 1089.276682 #1.35 #0.95
+z_source = 1.025 #0.5 #1089.276682 #1.025 #0.95
 z_min = 0.1
 z_max = 2.45104189964307
-redshift_s = f"/z{z_source:.3f}/galaxies/"
-redshift_l = f"/z{z_lens:.3f}/galaxies/"
-file_name_s = cat_dir+sim_name+redshift_s+"ELGs_catalog.asdf"
-file_name_l = cat_dir+sim_name+redshift_l+"ELGs_catalog.asdf"
+redshift_s = f"/z{z_source:.3f}/galaxies{rsd_str}/"
+redshift_l = f"/z{z_lens:.3f}/galaxies{rsd_str}/"
+file_name_s = cat_dir+sim_name+redshift_s+f"{tracer}s_catalog.asdf"
+file_name_l = cat_dir+sim_name+redshift_l+f"{tracer}s_catalog.asdf"
 
 # map specs
 nside = 16384
@@ -56,7 +60,7 @@ factor = Omega_cb/Omega_m
 # convergence only
 cmbl_s = ccl.CMBLensingTracer(cosmo, z_source=z_source, z_min=z_min, z_max=z_max)
 cls_kappa_th = ccl.angular_cl(cosmo, cmbl_s, cmbl_s, ell)/factor**2
-np.savez(f"data/kappa_zs{z_source:.3f}_ccl", ell=ell, cl_kappa=cls_kappa_th)
+np.savez(f"data/kappa_{sim_name}_{tracer}{rsd_str}_zs{z_source:.3f}_ccl", ell=ell, cl_kappa=cls_kappa_th)
 
 
 def get_dNdz(file_name, z_edges):
@@ -64,11 +68,13 @@ def get_dNdz(file_name, z_edges):
     dNdz, _ = np.histogram(Z, bins=z_edges)
     dNdz = dNdz.astype(float)
     return dNdz
-z_edges = np.linspace(0.2, 1.0, 1001)
+z_edges = np.linspace(0.08, 2.5, 2001)
 z_cent = 0.5*(z_edges[1:] + z_edges[:-1])
 dNdz_s = get_dNdz(file_name_s, z_edges)
 dNdz_l = get_dNdz(file_name_l, z_edges)
-bz = 0.95/ccl.background.growth_factor(cosmo, 1./(1+z_cent))
+
+#bz = 0.95/ccl.background.growth_factor(cosmo, 1./(1+z_cent))
+bz = 1.5/ccl.background.growth_factor(cosmo, 1./(1+z_cent))
 
 
 for z in [0.1, 0.3, 0.5, 0.8, 1.1, 1.7]:
@@ -123,9 +129,9 @@ gammat = ccl.correlation(cosmo, ell, cls_gal_shear_th, theta, type='NG') # numbe
 gammat_mag = ccl.correlation(cosmo, ell, cls_gal_shear_th+cls_ng_mag, theta, type='NG') # number, lensing
 gammat_p = ccl.correlation(cosmo, ell, cls_gal_shear_th+cls_ng_p, theta, type='NG') # number, lensing
 gammat_mag_p = ccl.correlation(cosmo, ell, cls_gal_shear_th+cls_ng_mag_p, theta, type='NG') # number, lensing
-np.savez(f"data/GG_zs{z_source:.3f}_ccl.npz", theta=theta, xip=xip, xim=xim)
-np.savez(f"data/NN_zl{z_lens:.3f}_ccl.npz", theta=theta, nn=nn, nn_mag_p=nn_mag_p)
-np.savez(f"data/NG_zl{z_lens:.3f}_zs{z_source:.3f}_ccl.npz", theta=theta, gammat=gammat, gammat_mag_p=gammat_mag_p, gammat_mag=gammat_mag, gammat_p=gammat_p)
+np.savez(f"data/GG_{sim_name}_{tracer}{rsd_str}_zs{z_source:.3f}_ccl.npz", theta=theta, xip=xip, xim=xim)
+np.savez(f"data/NN_{sim_name}_{tracer}{rsd_str}_zl{z_lens:.3f}_ccl.npz", theta=theta, nn=nn, nn_mag_p=nn_mag_p)
+np.savez(f"data/NG_{sim_name}_{tracer}{rsd_str}_zl{z_lens:.3f}_zs{z_source:.3f}_ccl.npz", theta=theta, gammat=gammat, gammat_mag_p=gammat_mag_p, gammat_mag=gammat_mag, gammat_p=gammat_p)
 
 want_plot = False
 if want_plot:
