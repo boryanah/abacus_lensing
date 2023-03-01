@@ -19,6 +19,7 @@ from tools import extract_steps, save_asdf, compress_asdf
 from mask_kappa import get_mask
 from abacusnbody.data.read_abacus import read_asdf
 from abacusnbody.metadata import get_meta
+from read_ini import get_rec_info
 
 # each array is 12 GB for 16384
 # maybe write out at each step all 48 dudes (probably super limited by I/O)? or for each dude go through all steps?
@@ -28,25 +29,32 @@ from abacusnbody.metadata import get_meta
 # could also get the healpix map for each step as temporary files and just read each at each step
 
 # adding CMB a bit add hoc
-z_cmb = 1089.276682
-chi_cmb = 13872.661199427605 # Mpc
+#z_cmb = 1089.276682
+#chi_cmb = 13872.661199427605 # Mpc
 
 # simulation name
 #sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
 sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
+z_cmb, chi_cmb = get_rec_info(sim_name)
+
+if len(sys.argv) > 2:
+    skip = int(sys.argv[2])
+else:
+    skip = 0
 
 # select the source redshifts (0.1 to 2.5 delta z = 0.05, around 50) tuks
 #z_srcs = np.arange(0.1, 2.5, 0.05);
 z_dic = {}
 e_tol = 1.e-6
-if 'base' in sim_name:
-    #z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs # TESTING!!!!!!!!!!!!
-    #z_srcs = np.arange(0.45, 0.75-e_tol, 0.05); z_str = "_z0.45_z0.75"; z_dic[z_str] = z_srcs
-    #z_srcs = np.arange(0.75, 1.05-e_tol, 0.05); z_str = "_z0.75_z1.05"; z_dic[z_str] = z_srcs
-    z_srcs = np.arange(1.05, 1.35-e_tol, 0.05); z_str = "_z1.05_z1.35"; z_dic[z_str] = z_srcs
-    z_srcs = np.arange(1.35, 1.65-e_tol, 0.05); z_str = "_z1.35_z1.65"; z_dic[z_str] = z_srcs
-    z_srcs = np.arange(1.65, 1.95-e_tol, 0.05); z_str = "_z1.65_z1.95"; z_dic[z_str] = z_srcs
-    z_srcs = np.arange(1.95, 2.25-e_tol, 0.05); z_str = "_z1.95_z2.25"; z_dic[z_str] = z_srcs
+if 'base' in sim_name: # change this if you want to remove stuff
+    if not skip:
+        z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs 
+        z_srcs = np.arange(0.45, 0.75-e_tol, 0.05); z_str = "_z0.45_z0.75"; z_dic[z_str] = z_srcs
+        z_srcs = np.arange(0.75, 1.05-e_tol, 0.05); z_str = "_z0.75_z1.05"; z_dic[z_str] = z_srcs
+        z_srcs = np.arange(1.05, 1.35-e_tol, 0.05); z_str = "_z1.05_z1.35"; z_dic[z_str] = z_srcs
+        z_srcs = np.arange(1.35, 1.65-e_tol, 0.05); z_str = "_z1.35_z1.65"; z_dic[z_str] = z_srcs
+        z_srcs = np.arange(1.65, 1.95-e_tol, 0.05); z_str = "_z1.65_z1.95"; z_dic[z_str] = z_srcs
+        z_srcs = np.arange(1.95, 2.25-e_tol, 0.05); z_str = "_z1.95_z2.25"; z_dic[z_str] = z_srcs
     z_srcs = np.arange(2.25, 2.55-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.2_z2.45_cmb"; z_dic[z_str] = z_srcs
 elif 'huge' in sim_name:
     z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs
@@ -66,7 +74,8 @@ npix = (hp.nside2npix(nside))
 
 # directories
 header_dir = f"/global/homes/b/boryanah//repos/abacus_lc_cat/data_headers/{sim_name}/"
-heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
+#heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
+heal_dir = f"/global/cfs/projectdirs/desi/users/boryanah/tape_data/{sim_name}/lightcones/heal/"
 save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
 os.makedirs(save_dir, exist_ok=True)
 
@@ -141,6 +150,7 @@ print("furthest redshift = ", z_max)
 # factor multiplying the standard integral (final answer should be dimensionless)
 prefactor = 3.0 * H0**2 * Om_m / (2.0 * c**2)
 
+# zoom over all the redshift bundles
 for z_str in z_dic.keys():
 
     # redshift and comoving distance to the lensing sources in Mpc
@@ -177,11 +187,12 @@ for z_str in z_dic.keys():
         # this is because our array's start corresponds to step numbers: step_start, step_start+1, step_start+2 ... step_stop
         j = step - step_min
         stepj = steps_all[j]
-        # tuks
+
         # furthest edge of shell
         zj = zs_all[j]
         aj = 1./(1+zj)
         rj = chis_all[j]
+        
         # mid point of shell
         zmj = z_mid[j]
         amj = 1./(1+zmj)
@@ -277,7 +288,7 @@ for z_str in z_dic.keys():
     # compress table and save into asdf file
     table['Kappas'] *= prefactor
     compress_asdf(save_dir+f"kappas{z_str}.asdf", table, header)
-    del table
+    del table['Kappas'], table, header
     gc.collect()
 quit()
 

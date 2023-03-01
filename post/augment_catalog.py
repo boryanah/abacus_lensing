@@ -77,15 +77,17 @@ def read_dat(want_rsd, cat_dir, tracer, redshift, sim_name):
 def main(sim_name, want_rsd=False):
     # parameter choices
     #redshifts = [0.400, 0.450, 0.500, 0.575, 0.650, 0.725, 0.800, 0.875, 0.950, 1.025, 1.100, 1.175, 1.250, 1.325, 1.400]
-    redshifts = [0.500, 0.800,  1.025, 1.100, 1.400] #[0.15, 0.2, 0.25, 0.3, 0.35] #[0.400, 0.500, 0.650, 0.800, 0.950]
-    tracer = "ELG"
-    #tracer = "LRG"
+    #redshifts = [0.500, 0.800,  1.025, 1.100, 1.400] #[0.15, 0.2, 0.25, 0.3, 0.35] #[0.400, 0.500, 0.650, 0.800, 0.950]
+    redshifts = [0.500, 1.025] #[0.15, 0.2, 0.25, 0.3, 0.35] #[0.400, 0.500, 0.650, 0.800, 0.950]
+    #tracer = "ELG"
+    tracer = "LRG"
     rands_fac = 20
     want_octant = 'None' #'octonly_all', "octant_all" (all 8) # "octonlysmooth", "octant", "octonly" (these 3 are for huge)
     
     # immutables
     sim_dir = "/global/project/projectdirs/desi/cosmosim/Abacus/halo_light_cones/"
-    lens_save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+    #lens_save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+    lens_save_dir = f"//global/project/projectdirs/desi/cosmosim/AbacusLensing/{sim_name}/"
     offset = 10. # Mpc/h
     
     # read from simulation header

@@ -1,5 +1,6 @@
 # TODO: drj I think you need to think about whether files record first or last comoving
 # could break into 0.1 to 0.5, 0.5 to 0.8, 0.8 to 1.1, 1.1 to 1.4, 1.4 to 1.6, 1.6 to 2.5
+# IMPORTANT we don't apply a mask to huge
 
 import os
 import gc
@@ -20,6 +21,7 @@ from util import histogram_hp, add_kappa_shell, add_shell
 from tools import extract_steps, save_asdf, compress_asdf
 from mask_kappa import get_mask
 from abacusnbody.metadata import get_meta
+from read_ini import get_rec_info
 
 # each array is 12 GB for 16384
 
@@ -34,21 +36,37 @@ def fast_ring2nest(hp_map, hp_ring2nest, hp_mask):
     return new_map
 
 # adding CMB a bit ad hoc
-z_cmb = 1089.276682
-chi_cmb = 13872.661199427605 # Mpc
+#z_cmb = 1089.276682
+#chi_cmb = 13872.661199427605 # Mpc
+
+# simulation name
+#sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
+sim_name = sys.argv[1]
+z_cmb, chi_cmb = get_rec_info(sim_name)
 
 # select the source redshifts (0.1 to 2.5 delta z = 0.05, around 50)
 #z_srcs = np.arange(0.1, 2.5, 0.05);
 z_dic = {}
 e_tol = 1.e-6
-z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(0.45, 0.75-e_tol, 0.05); z_str = "_z0.45_z0.75"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(0.75, 1.05-e_tol, 0.05); z_str = "_z0.75_z1.05"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.05, 1.35-e_tol, 0.05); z_str = "_z1.05_z1.35"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.35, 1.65-e_tol, 0.05); z_str = "_z1.35_z1.65"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.65, 1.95-e_tol, 0.05); z_str = "_z1.65_z1.95"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(1.95, 2.25-e_tol, 0.05); z_str = "_z1.95_z2.25"; z_dic[z_str] = z_srcs
-z_srcs = np.arange(2.25, 2.55-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.2_z2.45_cmb"; z_dic[z_str] = z_srcs
+if 'base' in sim_name:
+    z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs 
+    z_srcs = np.arange(0.45, 0.75-e_tol, 0.05); z_str = "_z0.45_z0.75"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(0.75, 1.05-e_tol, 0.05); z_str = "_z0.75_z1.05"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.05, 1.35-e_tol, 0.05); z_str = "_z1.05_z1.35"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.35, 1.65-e_tol, 0.05); z_str = "_z1.35_z1.65"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.65, 1.95-e_tol, 0.05); z_str = "_z1.65_z1.95"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.95, 2.25-e_tol, 0.05); z_str = "_z1.95_z2.25"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(2.25, 2.55-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.2_z2.45_cmb"; z_dic[z_str] = z_srcs
+elif 'huge' in sim_name:
+    z_srcs = np.arange(0.15, 0.45-e_tol, 0.05); z_str = "_z0.15_z0.45"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(0.45, 0.70-e_tol, 0.05); z_str = "_z0.45_z0.70"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(0.70, 0.95-e_tol, 0.05); z_str = "_z0.70_z0.95"; z_dic[z_str] = z_srcs 
+    z_srcs = np.arange(0.95, 1.20-e_tol, 0.05); z_str = "_z0.95_z1.20"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.20, 1.45-e_tol, 0.05); z_str = "_z1.20_z1.45"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.45, 1.70-e_tol, 0.05); z_str = "_z1.45_z1.70"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.70, 1.95-e_tol, 0.05); z_str = "_z1.70_z1.95"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(1.95, 2.20-e_tol, 0.05); z_str = "_z1.95_z2.20"; z_dic[z_str] = z_srcs
+    z_srcs = np.arange(2.20, 2.45-e_tol, 0.05); z_srcs[-1] = z_cmb; z_str = "_z2.20_z2.35_cmb"; z_dic[z_str] = z_srcs
 
 # healpix parameters (true for all AbacusSummit products, but could automize)
 nside = 16384
@@ -58,14 +76,12 @@ npix = (hp.nside2npix(nside))
 # number of threads
 nthreads = 16
 
-# simulation name
-#sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
-sim_name = sys.argv[1] #
-
 # directories
 header_dir = f"/global/homes/b/boryanah//repos/abacus_lc_cat/data_headers/{sim_name}/"
-heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
-save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+#heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
+heal_dir = f"/global/cfs/projectdirs/desi/users/boryanah/tape_data/{sim_name}/lightcones/heal/"
+save_dir = f"/global/project/projectdirs/desi/public/cosmosim/boryanah_AbacusLensing/{sim_name}/" # oops
+#save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
 os.makedirs(save_dir, exist_ok=True)
 
 # all healpix file names
@@ -73,14 +89,13 @@ hp_fns = sorted(glob.glob(heal_dir+"LightCone*.asdf"))
 n = len(hp_fns)
 
 # simulation parameters
-header = asdf.open(hp_fns[0])['header']
-Lbox = header['BoxSize'] # 2000. # Mpc/h
-PPD = header['ppd'] # 6912
+Lbox = get_meta(sim_name, redshift=0.1)['BoxSize'] # 2000. # Mpc/h
+PPD = get_meta(sim_name, redshift=0.1)['ppd'] # 6912
 NP = PPD**3
 
 # cosmological parameters
-Om_m = header['Omega_M'] #0.315192
-H0 = header['H0']
+Om_m = get_meta(sim_name, redshift=0.1)['Omega_M'] #0.315192
+H0 = get_meta(sim_name, redshift=0.1)['H0']
 h = H0/100.  # 0.6736
 c = 299792.458 # km/s
 
@@ -151,7 +166,9 @@ elif "huge" in sim_name:
     chi_same_mask = (Lbox-20.)/2./h
 print("z where same mask = ", z_of_chi(chi_same_mask))
 
-if z_start <= z_of_chi(chi_same_mask):
+if "huge" in sim_name:
+    mask = np.ones(new_npix, dtype=np.float32)
+elif z_start <= z_of_chi(chi_same_mask):
     t = time.time()
     # get mask at this redshift source
     mask = get_mask(new_nside, chi_same_mask*h, sim_name).astype(np.float32)
@@ -167,8 +184,10 @@ for z_str in z_dic.keys():
 
         if z_srcs[i] < z_start: sum += 1; continue
         if z_srcs[i] > z_stop: sum += 1; quit()
-        
-        if z_srcs[i] > z_of_chi(chi_same_mask):
+
+        if "huge" in sim_name:
+            pass #mask = np.ones(new_npix, dtype=np.float32)
+        elif z_srcs[i] > z_of_chi(chi_same_mask):
             t = time.time()
             try:
                 del mask; gc.collect()

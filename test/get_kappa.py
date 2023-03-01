@@ -1,5 +1,7 @@
 import time
 import gc
+import glob
+import sys
 
 import healpy as hp
 import asdf
@@ -7,19 +9,26 @@ import ducc0
 import numpy as np
 import matplotlib.pyplot as plt
 
-sim_name = "AbacusSummit_base_c000_ph006" #sys.argv[1] #"AbacusSummit_base_c000_ph000"
-save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+# python get_kappa.py AbacusSummit_base_c000_ph001
 
+sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
+lens_save_dir = f"/global/project/projectdirs/desi/cosmosim/AbacusLensing/{sim_name}/"
+#lens_save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+
+# scout all files and extract redshifts
 kappa_fns = sorted(glob.glob(lens_save_dir+f"kappa_00*.asdf"))
 z_srcs = []
-for i in range(len(mask_fns)):
+for i in range(len(kappa_fns)):
     z_srcs.append(asdf.open(kappa_fns[i])['header']['SourceRedshift'])
 z_srcs = np.sort(np.array(z_srcs))
 print("redshift sources = ", z_srcs)
 
-z_source = 1.4
-kappa_fn = kappa_fns[np.argmin(np.abs(z_srcs - z_source))]
+# decide on source Redshift-
+z_source = 1089.276682
+#z_source = 1.0
 
+# load kappa
+kappa_fn = kappa_fns[np.argmin(np.abs(z_srcs - z_source))]
 f = asdf.open(kappa_fn, lazy_load=True, copy_arrays=True)
 kappa = f['data']['kappa']
 nside = f['header']['HEALPix_nside']
@@ -37,14 +46,16 @@ if plot_kappa:
     hp.mollview(kappa)
     plt.savefig("figs/kappa.png")
     plt.close()
-    
+
+# somehow is correct
 fsky = 1.-np.mean(kappa == 0.)
 print(fsky)
-
 print("fsky == 0", fsky)
 print("fsky == 0", fsky*41200.)
 
-ell = np.arange(2*nside)
+# decide on ells
+ell = np.arange(nside) # to save time
+#ell = np.arange(2*nside) # reliable till
 #ell = np.arange(3*nside)
 lmax = ell[-1]
 nthreads = 16
@@ -60,7 +71,7 @@ kelm = kelm.astype(np.complex128)
 print(kelm.shape)
 
 cl_kappa = hp.alm2cl(kelm.flatten())/fsky # TURNS OUT INCLUDE LMAX = LMAX IS A BUG!!!!!!!!!
-np.savez(f"data/kappa_zs{z_source:.3f}.npz", cl_kappa=cl_kappa, ell=ell)
+np.savez(f"data/kappa_{sim_name}_zs{z_source:.3f}.npz", cl_kappa=cl_kappa, ell=ell)
 print(len(ell), len(cl_kappa))
 
 if plot_kappa:

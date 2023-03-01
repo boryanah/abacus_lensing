@@ -19,22 +19,23 @@ from fast_cksum.cksum_io import CksumWriter
 from util import histogram_hp, add_kappa_shell, add_shell
 from tools import extract_steps, save_asdf, compress_asdf
 from mask_kappa import get_mask
+from read_ini import get_rec_info
 from abacusnbody.metadata import get_meta
 
 # each array is 12 GB for 16384
 
 @njit(parallel=True)
-def fast_ring2nest(hp_map, hp_ring2nest, hp_mask):
-    if len(hp_mask) == 1:
-        masking = False
-    else:
-        masking = True
+def fast_ring2nest(hp_map, hp_ring2nest):
     new_map = np.zeros(len(hp_map), dtype=hp_map.dtype)
     for i in prange(len(hp_map)):
-        if masking:
-            new_map[i] = hp_map[hp_ring2nest[i]] * hp_mask[i]
-        else:
-            new_map[i] = hp_map[hp_ring2nest[i]] * hp_mask[0]
+        new_map[i] = hp_map[hp_ring2nest[i]]
+    return new_map
+
+@njit(parallel=True)
+def fast_ring2nest_mask(hp_map, hp_ring2nest, hp_mask):
+    new_map = np.zeros(len(hp_map), dtype=hp_map.dtype)
+    for i in prange(len(hp_map)):
+        new_map[i] = hp_map[hp_ring2nest[i]] * hp_mask[i]
     return new_map
 
 # adding CMB a bit ad hoc
@@ -44,6 +45,7 @@ chi_cmb = 13872.661199427605 # Mpc
 # simulation name
 #sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
 sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
+z_cmb, chi_cmb = get_rec_info(sim_name)
 
 # select the source redshifts (0.1 to 2.5 delta z = 0.05, around 50) tuks
 #z_srcs = np.arange(0.1, 2.5, 0.05);
@@ -83,7 +85,8 @@ sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
 
 # directories
 header_dir = f"/global/homes/b/boryanah//repos/abacus_lc_cat/data_headers/{sim_name}/"
-heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
+#heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
+heal_dir = f"/global/cfs/projectdirs/desi/users/boryanah/tape_data/{sim_name}/lightcones/heal/"
 save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
 os.makedirs(save_dir, exist_ok=True)
 
@@ -91,15 +94,22 @@ os.makedirs(save_dir, exist_ok=True)
 hp_fns = sorted(glob.glob(heal_dir+"LightCone*.asdf"))
 n = len(hp_fns)
 
-# simulation parameters
-header = asdf.open(hp_fns[0])['header']
-Lbox = header['BoxSize'] # 2000. # Mpc/h
-PPD = header['ppd'] # 6912
+# let's find a different way of doing this in case you delete the healpix files
+Lbox = get_meta(sim_name, redshift=0.1)['BoxSize']
+PPD = get_meta(sim_name, redshift=0.1)['ppd']
 NP = PPD**3
+Om_m = get_meta(sim_name, redshift=0.1)['Omega_M'] 
+H0 = get_meta(sim_name, redshift=0.1)['H0']
+
+# simulation parameters
+#header = asdf.open(hp_fns[0])['header']
+#Lbox = header['BoxSize'] # 2000. # Mpc/h
+#PPD = header['ppd'] # 6912
+#NP = PPD**3
 
 # cosmological parameters
-Om_m = header['Omega_M'] #0.315192
-H0 = header['H0']
+#Om_m = header['Omega_M'] #0.315192
+#H0 = header['H0']
 h = H0/100.  # 0.6736
 c = 299792.458 # km/s
 
@@ -176,7 +186,10 @@ elif "huge" in sim_name:
 print("z where same mask = ", z_of_chi(chi_same_mask))
 
 sum = 0
-want_mask = True
+if "huge" in sim_name:
+    want_mask = False
+else:
+    want_mask = True
 if want_mask and z_start <= z_of_chi(chi_same_mask):
     t = time.time()
     # get mask at this redshift source        
@@ -250,7 +263,10 @@ for z_str in z_dic.keys():
         t = time.time()
         table = {}
         #mask = np.array([1.], dtype=np.float32)
-        table['kappa'] = fast_ring2nest(kappa, new_ring2nest, mask) #equiv to kappa[new_ring2nest]
+        if mask is None:
+            table['kappa'] = fast_ring2nest(kappa, new_ring2nest) #equiv to kappa[new_ring2nest]
+        else:
+            table['kappa'] = fast_ring2nest_mask(kappa, new_ring2nest, mask) #equiv to kappa[new_ring2nest]
         print("time ring2nest = ", time.time()-t)
         
         # string names by which to identify masks (column names and header)

@@ -21,16 +21,18 @@ from util import histogram_hp, add_kappa_shell, add_shell
 from tools import extract_steps, save_asdf, compress_asdf
 from mask_kappa import get_mask
 from abacusnbody.metadata import get_meta
+from read_ini import get_rec_info
 
 # each array is 12 GB for 16384
 
 # adding CMB a bit ad hoc
-z_cmb = 1089.276682
-chi_cmb = 13872.661199427605 # Mpc
+#z_cmb = 1089.276682
+#chi_cmb = 13872.661199427605 # Mpc
 
 # simulation name
 #sim_name = f"AbacusSummit_base_c000_ph{i:03d}"
 sim_name = sys.argv[1] #"AbacusSummit_base_c000_ph000"
+z_cmb, chi_cmb = get_rec_info(sim_name)
 
 # select the source redshifts (0.1 to 2.5 delta z = 0.05, around 50)
 e_tol = 1.e-6
@@ -67,7 +69,7 @@ npix = (hp.nside2npix(nside))
 new_npix = (hp.nside2npix(new_nside))
 
 # starting redshift
-z_start = 1.01#0.1
+z_start = 0.1
 z_stop = z_cmb
 
 # Get the lmax and l,m values of the alms.
@@ -93,23 +95,37 @@ nthreads = 32
 
 # directories
 header_dir = f"/global/homes/b/boryanah//repos/abacus_lc_cat/data_headers/{sim_name}/"
-heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
-save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+#heal_dir = f"/global/project/projectdirs/desi/cosmosim/Abacus/{sim_name}/lightcones/heal/"
+heal_dir = f"/global/cfs/projectdirs/desi/users/boryanah/tape_data/{sim_name}/lightcones/heal/"
+save_dir = f"/global/project/projectdirs/desi/public/cosmosim/boryanah_AbacusLensing/{sim_name}/" # oops
+#save_dir = f"/global/cscratch1/sd/boryanah/light_cones/{sim_name}/"
+#save_dir = f"/global/project/projectdirs/desi/cosmosim/AbacusLensing/{sim_name}/"
 os.makedirs(save_dir, exist_ok=True)
 
-# all healpix file names
-hp_fns = sorted(glob.glob(heal_dir+"LightCone*.asdf"))
-n = len(hp_fns)
+# starting redshift
+if len(sys.argv) > 2: # resume
+    kappa_fns = sorted(glob.glob(f"{save_dir}/gamma_0*.asdf"))
+    alpha_fns = sorted(glob.glob(f"{save_dir}/alpha_0*.asdf"))
+    if len(alpha_fns) == 0:
+        z_start = 0.1
+    else:
+        if len(kappa_fns) < len(alpha_fns):
+            last_fn = kappa_fns[-1]
+        else:
+            last_fn = alpha_fns[-1]
+        z_start = asdf.open(last_fn)['header']['SourceRedshift']+0.01
+        #z_start = float(sys.argv[2])
+        if z_start > z_stop: print("You're done"); exit()
+print("starting redshift", z_start)
 
 # simulation parameters
-header = asdf.open(hp_fns[0])['header']
-Lbox = header['BoxSize'] # 2000. # Mpc/h
-PPD = header['ppd'] # 6912
+Lbox = get_meta(sim_name, redshift=0.1)['BoxSize'] # 2000. # Mpc/h
+PPD = get_meta(sim_name, redshift=0.1)['ppd'] # 6912
 NP = PPD**3
 
 # cosmological parameters
-Om_m = header['Omega_M'] #0.315192
-H0 = header['H0']
+Om_m = get_meta(sim_name, redshift=0.1)['Omega_M'] #0.315192
+H0 = get_meta(sim_name, redshift=0.1)['H0']
 h = H0/100.  # 0.6736
 c = 299792.458 # km/s
 
